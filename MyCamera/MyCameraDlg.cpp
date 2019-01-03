@@ -13,6 +13,58 @@
 
 
 // 응용 프로그램 정보에 사용되는 CAboutDlg 대화 상자입니다.
+BOOL m_bThreadFlag = FALSE;
+UINT ThreadImageCaptureFunc(LPVOID param);
+
+void FillBitmapInfo(BITMAPINFO* bmi, int width, int height, int bpp, int origin)
+{
+	assert(bmi && width >= 0 && height >= 0 && (bpp == 8 || bpp == 24 || bpp == 32));
+	BITMAPINFOHEADER *bmih = &(bmi->bmiHeader);
+	memset(bmih, 0, sizeof(*bmih));
+	bmih->biSize = sizeof(BITMAPINFOHEADER);
+	bmih->biWidth = width;
+	bmih->biHeight = origin ? abs(height) : -abs(height);
+	bmih->biPlanes = 1;
+	bmih->biBitCount = (unsigned short)bpp;
+	bmih->biCompression = BI_RGB;
+	if (bpp == 8)
+	{
+		RGBQUAD *palette = bmi->bmiColors;
+		for (int i = 0; i < 256; i++)
+		{
+			palette[i].rgbBlue = palette[i].rgbGreen = palette[i].rgbRed = (BYTE)i;
+			palette[i].rgbReserved = 0;
+		}
+	}
+}
+
+void DisplayImage(CDC* pDC, CRect rect, cv::Mat& srcimg)
+{
+	cv::Mat img;
+	int step = ((int)(rect.Width() / 4)) * 4;
+	cv::resize(srcimg, img, cv::Size(step, rect.Height()));
+
+	uchar buffer[sizeof(BITMAPINFOHEADER) * 1024];
+	BITMAPINFO* bmi = (BITMAPINFO*)buffer;
+
+	int bmp_w = img.cols;
+	int bmp_h = img.rows;
+	int depth = img.depth();
+	int channels = img.channels();
+	int bpp = 8 * channels;
+
+	FillBitmapInfo(bmi, bmp_w, bmp_h, bpp, 0);
+
+	int from_x = MIN(0, bmp_w - 1);
+	int from_y = MIN(0, bmp_h - 1);
+	int sw = MAX(MIN(bmp_w - from_x, rect.Width()), 0);
+	int sh = MAX(MIN(bmp_h - from_y, rect.Height()), 0);
+
+	SetDIBitsToDevice(pDC->m_hDC, rect.left, rect.top, sw, sh, from_x, from_y, 0, sh, img.data + from_y * img.step, bmi, 0);
+
+	img.release();
+}
+
 
 class CAboutDlg : public CDialogEx
 {
@@ -58,12 +110,18 @@ CMyCameraDlg::CMyCameraDlg(CWnd* pParent /*=nullptr*/)
 void CMyCameraDlg::DoDataExchange(CDataExchange* pDX)
 {
 	CDialogEx::DoDataExchange(pDX);
+	DDX_Control(pDX, IDC_VIEW1, m_view);
+	DDX_Control(pDX, IDC_VIEW2, m_binview);
 }
 
 BEGIN_MESSAGE_MAP(CMyCameraDlg, CDialogEx)
 	ON_WM_SYSCOMMAND()
 	ON_WM_PAINT()
 	ON_WM_QUERYDRAGICON()
+	ON_BN_CLICKED(IDC_CAM_START, &CMyCameraDlg::OnBnClickedCamStart)
+	ON_BN_CLICKED(IDC_CAM_STOP, &CMyCameraDlg::OnBnClickedCamStop)
+	ON_BN_CLICKED(IDC_LOAD_BMP, &CMyCameraDlg::OnBnClickedLoadBmp)
+	ON_BN_CLICKED(IDC_SAVE_BMP, &CMyCameraDlg::OnBnClickedSaveBmp)
 END_MESSAGE_MAP()
 
 
@@ -99,6 +157,8 @@ BOOL CMyCameraDlg::OnInitDialog()
 	SetIcon(m_hIcon, FALSE);		// 작은 아이콘을 설정합니다.
 
 	// TODO: 여기에 추가 초기화 작업을 추가합니다.
+	m_capture.open(0);
+	if (m_capture.isOpened()) AfxMessageBox(_T("There is no camera captured!"));
 
 	return TRUE;  // 포커스를 컨트롤에 설정하지 않으면 TRUE를 반환합니다.
 }
@@ -142,6 +202,35 @@ void CMyCameraDlg::OnPaint()
 	else
 	{
 		CDialogEx::OnPaint();
+
+		if (m_image.data != NULL)
+		{
+			CRect rect;
+			CDC* pDC;
+			pDC = m_view.GetDC();
+			m_view.GetClientRect(rect);
+			DisplayImage(pDC, rect, m_image);
+			ReleaseDC(pDC);
+
+
+			cv::Mat gray_img;
+			cv::cvtColor(m_image, gray_img, cv::COLOR_BGR2GRAY);
+			pDC = m_binview.GetDC();
+			m_binview.GetClientRect(rect);
+
+			for (int y = 0; y < gray_img.rows; y++)
+			{
+				for (int x = 0; x < gray_img.cols; x++)
+				{
+					if ((unsigned char)gray_img.data[y*gray_img.step + x] > 100)
+						gray_img.data[y*gray_img.step + x] = (unsigned char)255;
+					else
+						gray_img.data[y*gray_img.step + x] = (unsigned char)0;
+				}
+			}
+			DisplayImage(pDC, rect, gray_img);
+			ReleaseDC(pDC);
+		}
 	}
 }
 
@@ -152,3 +241,62 @@ HCURSOR CMyCameraDlg::OnQueryDragIcon()
 	return static_cast<HCURSOR>(m_hIcon);
 }
 
+
+
+
+void CMyCameraDlg::OnBnClickedCamStart()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	m_bThreadFlag = TRUE;
+	CWinThread *pThread = ::AfxBeginThread(ThreadImageCaptureFunc, this);
+}
+
+
+void CMyCameraDlg::OnBnClickedCamStop()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	m_bThreadFlag = FALSE;
+}
+
+
+UINT ThreadImageCaptureFunc(LPVOID param)
+{
+	CMyCameraDlg *pDlg = (CMyCameraDlg*)param;
+	while (m_bThreadFlag)
+	{
+		pDlg->m_capture >> pDlg->m_image;
+		pDlg->Invalidate(FALSE);
+	}
+	return 0;
+}
+
+
+
+void CMyCameraDlg::OnBnClickedLoadBmp()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	wchar_t szFilter[] = _T("Image(*.bmp) | *.BMP;*.GIF;*.JPG | AllFiles(*.*) | *.*||");
+	CFileDialog dlg(TRUE, _T("bmp"), _T("test"), OFN_HIDEREADONLY, szFilter);
+	if (dlg.DoModal() == IDOK)
+	{
+		std::string filename(CT2CA(dlg.GetPathName()));
+		m_image = cv::imread(filename);
+		Invalidate(FALSE);
+	}
+}
+
+
+void CMyCameraDlg::OnBnClickedSaveBmp()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	wchar_t szFilter[] = _T("Image (*.BMP) | *.BMP;*.GIF;*.JPG | AllFiles(*.*)|*.*||");
+	CFileDialog dlg(FALSE, _T("bmp"), _T("test"), OFN_HIDEREADONLY, szFilter);
+
+	if (dlg.DoModal() == IDOK)
+	{
+		//cv::flip(m_image, m_image, 0);
+		std::string filename(CT2CA(dlg.GetPathName()));
+
+		cv::imwrite(filename, m_image);
+	}
+}

@@ -3,7 +3,7 @@
 //
 
 #pragma once
-
+#include "stdafx.h"
 
 // CMyCameraDlg 대화 상자
 class CMyCameraDlg : public CDialogEx
@@ -31,4 +31,15 @@ protected:
 	afx_msg void OnPaint();
 	afx_msg HCURSOR OnQueryDragIcon();
 	DECLARE_MESSAGE_MAP()
+public:
+	cv::Mat m_image;
+	cv::VideoCapture m_capture;
+	CStatic m_view;
+	CStatic m_binview;
+
+	afx_msg void OnBnClickedCamStart();
+	afx_msg void OnBnClickedCamStop();
+	afx_msg void OnDestroy();
+	afx_msg void OnBnClickedLoadBmp();
+	afx_msg void OnBnClickedSaveBmp();
 };
