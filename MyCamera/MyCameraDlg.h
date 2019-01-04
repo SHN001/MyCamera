@@ -36,11 +36,11 @@ public:
 	cv::VideoCapture m_capture;
 	CStatic m_view;
 	CStatic m_corner_view;
+	bool m_chessboard_choice = FALSE;
 
 	afx_msg void OnBnClickedCamStart();
 	afx_msg void OnBnClickedCamStop();
 	//afx_msg void OnDestroy();
 	afx_msg void OnBnClickedSaveBmp();
-	CButton m_chsboard;
-	CButton m_chsboard_sb;
+	afx_msg void OnMenuSettings();
 };

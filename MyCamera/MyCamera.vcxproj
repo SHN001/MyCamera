@@ -189,6 +189,7 @@
     </ResourceCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="CSettings.h" />
     <ClInclude Include="MyCamera.h" />
     <ClInclude Include="MyCameraDlg.h" />
     <ClInclude Include="Resource.h" />
@@ -196,6 +197,7 @@
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="CSettings.cpp" />
     <ClCompile Include="MyCamera.cpp" />
     <ClCompile Include="MyCameraDlg.cpp" />
     <ClCompile Include="stdafx.cpp">

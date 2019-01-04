@@ -6,6 +6,7 @@
 #include "MyCamera.h"
 #include "MyCameraDlg.h"
 #include "afxdialogex.h"
+#include "CSettings.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -112,8 +113,6 @@ void CMyCameraDlg::DoDataExchange(CDataExchange* pDX)
 	CDialogEx::DoDataExchange(pDX);
 	DDX_Control(pDX, IDC_VIEW1, m_view);
 	DDX_Control(pDX, IDC_VIEW2, m_corner_view);
-	DDX_Control(pDX, IDC_CHSBORD1, m_chsboard);
-	DDX_Control(pDX, IDC_CHSBORD2, m_chsboard_sb);
 }
 
 BEGIN_MESSAGE_MAP(CMyCameraDlg, CDialogEx)
@@ -123,6 +122,7 @@ BEGIN_MESSAGE_MAP(CMyCameraDlg, CDialogEx)
 	ON_BN_CLICKED(IDC_CAM_START, &CMyCameraDlg::OnBnClickedCamStart)
 	ON_BN_CLICKED(IDC_CAM_STOP, &CMyCameraDlg::OnBnClickedCamStop)
 	ON_BN_CLICKED(IDC_SAVE_BMP, &CMyCameraDlg::OnBnClickedSaveBmp)
+	ON_COMMAND(ID_MENU_SETTINGS, &CMyCameraDlg::OnMenuSettings)
 END_MESSAGE_MAP()
 
 
@@ -220,23 +220,22 @@ void CMyCameraDlg::OnPaint()
 			m_corner_view.GetClientRect(rect);
 
 			
-			cv::Size patternsize(4, 3);
+			cv::Size patternsize(5, 4);
 			std::vector<cv::Point2f> corners;
 			
-			bool patternfound;
-
-			if (m_chsboard_sb.GetCheck())
+			bool patternfound = FALSE;
+			
+			if (m_chessboard_choice)
 				patternfound = cv::findChessboardCornersSB(corner_img, patternsize, corners);
 			else
 				patternfound = cv::findChessboardCorners(corner_img, patternsize, corners, cv::CALIB_CB_ADAPTIVE_THRESH+cv::CALIB_CB_NORMALIZE_IMAGE);
-	
+
 			if (patternfound)
 			{
 				//cv::cornerSubPix(corner_img, corners, cv::Size(11, 11), cv::Size(-1, -1), cv::TermCriteria(cv::TermCriteria::EPS + cv::TermCriteria::MAX_ITER, 30, 0.1));
 				cv::drawChessboardCorners(corner_img, patternsize, cv::Mat(corners), patternfound);
 			}
 		
-
 			DisplayImage(pDC, rect, corner_img);
 			ReleaseDC(pDC);
 		}
@@ -293,3 +292,11 @@ void CMyCameraDlg::OnBnClickedSaveBmp()
 		cv::imwrite(filename, m_image);
 	}
 }
+
+void CMyCameraDlg::OnMenuSettings()
+{
+	// TODO: 여기에 명령 처리기 코드를 추가합니다.
+	CSettings dlg;
+	dlg.DoModal();
+}
+
