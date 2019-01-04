@@ -111,7 +111,9 @@ void CMyCameraDlg::DoDataExchange(CDataExchange* pDX)
 {
 	CDialogEx::DoDataExchange(pDX);
 	DDX_Control(pDX, IDC_VIEW1, m_view);
-	DDX_Control(pDX, IDC_VIEW2, m_binview);
+	DDX_Control(pDX, IDC_VIEW2, m_corner_view);
+	DDX_Control(pDX, IDC_CHSBORD1, m_chsboard);
+	DDX_Control(pDX, IDC_CHSBORD2, m_chsboard_sb);
 }
 
 BEGIN_MESSAGE_MAP(CMyCameraDlg, CDialogEx)
@@ -120,7 +122,6 @@ BEGIN_MESSAGE_MAP(CMyCameraDlg, CDialogEx)
 	ON_WM_QUERYDRAGICON()
 	ON_BN_CLICKED(IDC_CAM_START, &CMyCameraDlg::OnBnClickedCamStart)
 	ON_BN_CLICKED(IDC_CAM_STOP, &CMyCameraDlg::OnBnClickedCamStop)
-	ON_BN_CLICKED(IDC_LOAD_BMP, &CMyCameraDlg::OnBnClickedLoadBmp)
 	ON_BN_CLICKED(IDC_SAVE_BMP, &CMyCameraDlg::OnBnClickedSaveBmp)
 END_MESSAGE_MAP()
 
@@ -213,22 +214,30 @@ void CMyCameraDlg::OnPaint()
 			ReleaseDC(pDC);
 
 
-			cv::Mat gray_img;
-			cv::cvtColor(m_image, gray_img, cv::COLOR_BGR2GRAY);
-			pDC = m_binview.GetDC();
-			m_binview.GetClientRect(rect);
+			cv::Mat corner_img;
+			cv::cvtColor(m_image, corner_img, cv::COLOR_BGR2GRAY);
+			pDC = m_corner_view.GetDC();
+			m_corner_view.GetClientRect(rect);
 
-			for (int y = 0; y < gray_img.rows; y++)
+			
+			cv::Size patternsize(4, 3);
+			std::vector<cv::Point2f> corners;
+			
+			bool patternfound;
+
+			if (m_chsboard_sb.GetCheck())
+				patternfound = cv::findChessboardCornersSB(corner_img, patternsize, corners);
+			else
+				patternfound = cv::findChessboardCorners(corner_img, patternsize, corners, cv::CALIB_CB_ADAPTIVE_THRESH+cv::CALIB_CB_NORMALIZE_IMAGE);
+	
+			if (patternfound)
 			{
-				for (int x = 0; x < gray_img.cols; x++)
-				{
-					if ((unsigned char)gray_img.data[y*gray_img.step + x] > 100)
-						gray_img.data[y*gray_img.step + x] = (unsigned char)255;
-					else
-						gray_img.data[y*gray_img.step + x] = (unsigned char)0;
-				}
+				//cv::cornerSubPix(corner_img, corners, cv::Size(11, 11), cv::Size(-1, -1), cv::TermCriteria(cv::TermCriteria::EPS + cv::TermCriteria::MAX_ITER, 30, 0.1));
+				cv::drawChessboardCorners(corner_img, patternsize, cv::Mat(corners), patternfound);
 			}
-			DisplayImage(pDC, rect, gray_img);
+		
+
+			DisplayImage(pDC, rect, corner_img);
 			ReleaseDC(pDC);
 		}
 	}
@@ -269,22 +278,6 @@ UINT ThreadImageCaptureFunc(LPVOID param)
 	}
 	return 0;
 }
-
-
-
-void CMyCameraDlg::OnBnClickedLoadBmp()
-{
-	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
-	wchar_t szFilter[] = _T("Image(*.bmp) | *.BMP;*.GIF;*.JPG | AllFiles(*.*) | *.*||");
-	CFileDialog dlg(TRUE, _T("bmp"), _T("test"), OFN_HIDEREADONLY, szFilter);
-	if (dlg.DoModal() == IDOK)
-	{
-		std::string filename(CT2CA(dlg.GetPathName()));
-		m_image = cv::imread(filename);
-		Invalidate(FALSE);
-	}
-}
-
 
 void CMyCameraDlg::OnBnClickedSaveBmp()
 {

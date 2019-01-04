@@ -35,6 +35,8 @@
 
 #include "opencv2/opencv.hpp"
 #include "opencv2/highgui/highgui.hpp"
+#include <afxcontrolbars.h>
+#include <afxcontrolbars.h>
 
 
 

@@ -103,4 +103,3 @@ BOOL CMyCameraApp::InitInstance()
 	// 반환합니다.
 	return FALSE;
 }
-
